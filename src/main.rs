@@ -1,82 +1,111 @@
+
+use std::cell::RefCell;
+use std::rc::Rc;
+
 #[derive(Debug)]
-struct Node{
-    value:i32,
-    next:Option<Box<Node>>
+struct Node {
+    value: i32,                              
+    next: Option<Rc<RefCell<Node>>>,         
 }
+
 #[derive(Debug)]
-struct LinkedList{
-    head:Option<Box<Node>>
+struct LinkedList {
+    head: Option<Rc<RefCell<Node>>>,        
 }
-trait List {
-    fn new()->LinkedList;
-    fn add(&mut self,value:i32);
-    fn remove(&mut self,value:i32)->bool;
+
+trait List{
+    fn new()->Self;
+    fn add(&mut self, value: i32);
+    fn delete(&mut self,value:i32);
     fn print(&self);
     fn len(&self)->usize;
 }
-impl List for LinkedList {
-    fn new()->LinkedList {
-        LinkedList{
-            head:None,
+
+impl List for LinkedList{
+    fn new()->Self {
+        LinkedList {
+            head: None,
         }
     }
 
     fn add(&mut self, value: i32) {
-        
-        let new_node = Box::new(Node {
+        let new_node = Rc::new(RefCell::new(Node {
             value,
-            next: self.head.take(),
-        });
-        self.head = Some(new_node);
-        
-    }
+            next: None,
+        }));
 
-    fn remove(&mut self, value: i32) -> bool {
-        unsafe {
-            let mut current: *mut Option<Box<Node>> = &mut self.head;
-            
-            while let Some(node) = &mut *current {
-                if node.value == value {
-                    let next = node.next.take();
-                    *current = next;
-                    return true;
+        match &self.head {
+            Some(node) => {
+                let mut current = node.clone();
+                loop {
+                    let next = current.borrow().next.clone();
+                    match next {
+                        Some(next_node) => {
+                            current = next_node;
+                        }
+                        None => {
+                            break;
+                        }
+                    }
                 }
-                current = &mut (*current).as_mut().unwrap().next;
+                current.borrow_mut().next = Some(new_node);
+            }
+            None => {
+                self.head = Some(new_node);
             }
         }
-        false
     }
-        
+
+    fn delete(&mut self,value:i32) {
+        let mut current = self.head.clone();
+        let mut prev: Option<Rc<RefCell<Node>>> = None;
+        while let Some(node) = current {
+            if node.borrow().value == value {
+                match &prev {
+                    Some(prev_node) => {
+                        prev_node.borrow_mut().next = node.borrow().next.clone();
+                    }
+                    None => {
+                        self.head = node.borrow().next.clone();
+                    }
+                }
+                break;
+            }
+            prev = Some(node.clone());
+            current = node.borrow().next.clone();
+        }
+    }
 
     fn print(&self) {
-        let mut cur=&self.head;
-        loop{
-            match cur{
-                Some(node)=>{
-                    print!("{} ",node.value);
-                    cur = &node.next;
-                }
-                None=>break,
-            }
+        let mut current = self.head.clone();
+        while let Some(node) = current {
+            println!("{}", node.borrow().value);
+            current = node.borrow().next.clone();
         }
     }
 
     fn len(&self)->usize {
-        let mut size:usize = 0;
-        let mut cur = &self.head;
-        while let Some(node)=cur{
-            size+=1;
-            cur = &node.next;
+        let mut current = self.head.clone();
+        let mut count = 0;
+        while let Some(node) = current {
+            count += 1;
+            current = node.borrow().next.clone();
         }
-        size
+        count
     }
 }
-fn main() {
+
+
+
+fn main(){
     let mut list = LinkedList::new();
-    list.add(10);
-    list.add(20);
-    list.add(30);
-    list.remove(20);
+    list.add(1);
+    list.add(2);
+    list.add(3);
+    list.add(4);
+    list.add(5);
+    list.print();
+    list.delete(3);
     list.print();
     println!("size: {}",list.len());
 }
